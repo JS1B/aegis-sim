@@ -43,8 +43,9 @@ clean:
 	rm -rf $(BUILDDIR) $(TARGET)
 
 # Dependencies
-$(BUILDDIR)/main.o: $(SRCDIR)/main.cpp $(INCDIR)/particle_system.hpp $(INCDIR)/flocking.hpp $(INCDIR)/vtk_writer.hpp
+$(BUILDDIR)/main.o: $(SRCDIR)/main.cpp $(INCDIR)/particle_system.hpp $(INCDIR)/flocking.hpp $(INCDIR)/vtk_writer.hpp $(INCDIR)/spatial_grid.hpp
 $(BUILDDIR)/particle_system.o: $(SRCDIR)/particle_system.cpp $(INCDIR)/particle_system.hpp $(INCDIR)/vec3.hpp $(INCDIR)/memory.hpp
-$(BUILDDIR)/flocking.o: $(SRCDIR)/flocking.cpp $(INCDIR)/flocking.hpp $(INCDIR)/particle_system.hpp $(INCDIR)/vec3.hpp
+$(BUILDDIR)/flocking.o: $(SRCDIR)/flocking.cpp $(INCDIR)/flocking.hpp $(INCDIR)/particle_system.hpp $(INCDIR)/vec3.hpp $(INCDIR)/spatial_grid.hpp
 $(BUILDDIR)/vtk_writer.o: $(SRCDIR)/vtk_writer.cpp $(INCDIR)/vtk_writer.hpp $(INCDIR)/particle_system.hpp $(INCDIR)/mesh.hpp
 $(BUILDDIR)/mesh_builder.o: $(SRCDIR)/mesh_builder.cpp $(INCDIR)/mesh_builder.hpp $(INCDIR)/mesh.hpp $(INCDIR)/particle_system.hpp
+$(BUILDDIR)/spatial_grid.o: $(SRCDIR)/spatial_grid.cpp $(INCDIR)/spatial_grid.hpp $(INCDIR)/particle_system.hpp $(INCDIR)/vec3.hpp

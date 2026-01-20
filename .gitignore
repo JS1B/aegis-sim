@@ -1,5 +1,9 @@
 build/
 logs/
 output_data/
+.vscode/
+.cache/
+
+compile_commands.json
 
 aegis_sim

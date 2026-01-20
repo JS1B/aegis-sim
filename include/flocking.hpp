@@ -4,6 +4,9 @@
 #include "particle_system.hpp"
 #include "vec3.hpp"
 
+// Forward declaration to avoid circular dependency
+class SpatialGrid;
+
 /**
  * Flocking force parameters.
  * Tune these to control swarm behavior.
@@ -55,6 +58,23 @@ Vec3 compute_flocking_force_single(
     const ParticleSystem& particles,
     const FlockingParams& params,
     size_t particle_index
+);
+
+/**
+ * Compute flocking forces using spatial grid optimization.
+ * Uses O(N * avg_neighbors) instead of O(N^2) with grid-based neighbor search.
+ * Parallelized with OpenMP for maximum performance.
+ * 
+ * @param particles The particle system
+ * @param params Flocking behavior parameters
+ * @param grid Spatial grid for neighbor queries
+ * @param forces Output array for computed forces (must be pre-allocated)
+ */
+void compute_flocking_forces_grid(
+    const ParticleSystem& particles,
+    const FlockingParams& params,
+    const SpatialGrid& grid,
+    Vec3* forces
 );
 
 #endif // FLOCKING_HPP

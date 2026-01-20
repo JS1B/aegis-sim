@@ -2,6 +2,10 @@
 #include <random>
 #include <cmath>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 ParticleSystem::ParticleSystem(size_t count, int num_species, unsigned int seed)
     : count_(count),
       pos_x_(nullptr), pos_y_(nullptr), pos_z_(nullptr),
@@ -69,7 +73,7 @@ void ParticleSystem::initialize_random(int num_species, unsigned int seed) {
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> dist_theta(0.0, 2.0 * M_PI);
     std::uniform_real_distribution<double> dist_cos_phi(-1.0, 1.0);
-    std::uniform_real_distribution<double> dist_vel(-0.01, 0.01);
+    std::uniform_real_distribution<double> dist_vel(-0.1, 0.1);  // Increased from ±0.01 to ±0.1
     std::uniform_int_distribution<int> dist_species(0, num_species - 1);
     
     for (size_t i = 0; i < count_; ++i) {
@@ -147,6 +151,8 @@ void ParticleSystem::apply_spherical_constraint_all() {
 }
 
 void ParticleSystem::integrate(const Vec3* forces, double dt) {
+    // Parallel integration - each particle update is independent
+    #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < count_; ++i) {
         // Update velocity: v += F * dt
         vel_x_[i] += forces[i].x * dt;

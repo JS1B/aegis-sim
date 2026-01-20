@@ -13,7 +13,7 @@
 
 set -e
 
-module load gcc/11.5.0
+# module load gcc/11.5.0
 
 make clean && make -j
 
@@ -21,14 +21,14 @@ make clean && make -j
 mkdir -p output_data
 mkdir -p logs
 
-export OMP_NUM_THREADS=24
+export OMP_NUM_THREADS=1
 
-N_PARTICLES=50000
+N_PARTICLES=1000000
 TIMESTEPS=1000
-OUTPUT_INTERVAL=1
+DT=0.01
 
 # Execute the simulation
-./aegis_sim $N_PARTICLES $TIMESTEPS $OUTPUT_INTERVAL
+./aegis_sim $N_PARTICLES $TIMESTEPS $DT
 
 echo ""
 echo "=== Job Complete ==="
