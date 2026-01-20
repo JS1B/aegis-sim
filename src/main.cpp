@@ -73,10 +73,10 @@ int main(int argc, char* argv[]) {
     // Allocate force buffer
     std::vector<Vec3> forces(n_particles);
     
-    // Write initial state
+    // Write initial state (verbose to show mesh statistics)
     if (output_interval > 0) {
-        std::cout << "Writing initial VTK output...\n";
-        write_vtk_timestep(particles, "output_data/particles", 0);
+        std::cout << "Writing initial VTK mesh...\n";
+        write_vtk_timestep(particles, "output_data/particles", 0, true);
     }
     
     // Main simulation loop

@@ -1,4 +1,5 @@
 #include "vtk_writer.hpp"
+#include "mesh_builder.hpp"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -53,13 +54,18 @@ static std::string encode_array_base64(const T* data, size_t count) {
     return base64_encode(buffer.data(), buffer.size());
 }
 
-bool write_vtk(const ParticleSystem& particles, const std::string& filename) {
+bool write_vtk_mesh(
+    const ParticleSystem& particles,
+    const Mesh& mesh,
+    const std::string& filename
+) {
     std::ofstream file(filename);
     if (!file.is_open()) {
         return false;
     }
     
     size_t n = particles.count();
+    size_t num_polys = mesh.num_triangles;
     
     // Prepare interleaved position data (x0,y0,z0, x1,y1,z1, ...)
     std::vector<double> positions(n * 3);
@@ -69,17 +75,12 @@ bool write_vtk(const ParticleSystem& particles, const std::string& filename) {
         positions[i * 3 + 2] = particles.pos_z()[i];
     }
     
-    // Prepare velocity data
+    // Prepare velocity vectors
     std::vector<double> velocities(n * 3);
-    std::vector<double> velocity_magnitudes(n);
     for (size_t i = 0; i < n; ++i) {
-        double vx = particles.vel_x()[i];
-        double vy = particles.vel_y()[i];
-        double vz = particles.vel_z()[i];
-        velocities[i * 3 + 0] = vx;
-        velocities[i * 3 + 1] = vy;
-        velocities[i * 3 + 2] = vz;
-        velocity_magnitudes[i] = std::sqrt(vx * vx + vy * vy + vz * vz);
+        velocities[i * 3 + 0] = particles.vel_x()[i];
+        velocities[i * 3 + 1] = particles.vel_y()[i];
+        velocities[i * 3 + 2] = particles.vel_z()[i];
     }
     
     // Prepare species data
@@ -88,13 +89,15 @@ bool write_vtk(const ParticleSystem& particles, const std::string& filename) {
         species[i] = particles.species_id()[i];
     }
     
-    // Write VTK XML PolyData format
+    // Write VTK XML PolyData format with Polys (triangles)
     file << "<?xml version=\"1.0\"?>\n";
     file << "<VTKFile type=\"PolyData\" version=\"0.1\" byte_order=\"LittleEndian\" header_type=\"UInt32\">\n";
     file << "  <PolyData>\n";
-    file << "    <Piece NumberOfPoints=\"" << n << "\" NumberOfVerts=\"" << n << "\" NumberOfLines=\"0\" NumberOfStrips=\"0\" NumberOfPolys=\"0\">\n";
+    file << "    <Piece NumberOfPoints=\"" << n 
+         << "\" NumberOfVerts=\"0\" NumberOfLines=\"0\" NumberOfStrips=\"0\" NumberOfPolys=\"" 
+         << num_polys << "\">\n";
     
-    // Point data (attributes)
+    // Point data (attributes per vertex)
     file << "      <PointData Vectors=\"Velocity\" Scalars=\"VelocityMagnitude\">\n";
     
     // Velocity vectors
@@ -104,7 +107,12 @@ bool write_vtk(const ParticleSystem& particles, const std::string& filename) {
     
     // Velocity magnitude
     file << "        <DataArray type=\"Float64\" Name=\"VelocityMagnitude\" format=\"binary\">\n";
-    file << "          " << encode_array_base64(velocity_magnitudes.data(), velocity_magnitudes.size()) << "\n";
+    file << "          " << encode_array_base64(mesh.velocity_magnitudes.data(), mesh.velocity_magnitudes.size()) << "\n";
+    file << "        </DataArray>\n";
+    
+    // Local density
+    file << "        <DataArray type=\"Float64\" Name=\"LocalDensity\" format=\"binary\">\n";
+    file << "          " << encode_array_base64(mesh.local_densities.data(), mesh.local_densities.size()) << "\n";
     file << "        </DataArray>\n";
     
     // Species ID
@@ -121,28 +129,26 @@ bool write_vtk(const ParticleSystem& particles, const std::string& filename) {
     file << "        </DataArray>\n";
     file << "      </Points>\n";
     
-    // Vertices (each point is its own vertex)
-    file << "      <Verts>\n";
+    // Polys (triangles from spherical Delaunay)
+    file << "      <Polys>\n";
     
-    // Connectivity: 0, 1, 2, ..., n-1
-    std::vector<int32_t> connectivity(n);
-    for (size_t i = 0; i < n; ++i) {
-        connectivity[i] = static_cast<int32_t>(i);
-    }
+    // Connectivity: triangle vertex indices
+    // Format: t0_v0, t0_v1, t0_v2, t1_v0, t1_v1, t1_v2, ...
     file << "        <DataArray type=\"Int32\" Name=\"connectivity\" format=\"binary\">\n";
-    file << "          " << encode_array_base64(connectivity.data(), connectivity.size()) << "\n";
+    file << "          " << encode_array_base64(mesh.triangle_indices.data(), mesh.triangle_indices.size()) << "\n";
     file << "        </DataArray>\n";
     
-    // Offsets: 1, 2, 3, ..., n (each vertex has 1 point)
-    std::vector<int32_t> offsets(n);
-    for (size_t i = 0; i < n; ++i) {
-        offsets[i] = static_cast<int32_t>(i + 1);
+    // Offsets: cumulative vertex count per polygon
+    // For triangles: 3, 6, 9, 12, ...
+    std::vector<int32_t> offsets(num_polys);
+    for (size_t i = 0; i < num_polys; ++i) {
+        offsets[i] = static_cast<int32_t>((i + 1) * 3);
     }
     file << "        <DataArray type=\"Int32\" Name=\"offsets\" format=\"binary\">\n";
     file << "          " << encode_array_base64(offsets.data(), offsets.size()) << "\n";
     file << "        </DataArray>\n";
     
-    file << "      </Verts>\n";
+    file << "      </Polys>\n";
     
     file << "    </Piece>\n";
     file << "  </PolyData>\n";
@@ -151,13 +157,28 @@ bool write_vtk(const ParticleSystem& particles, const std::string& filename) {
     return file.good();
 }
 
+bool write_vtk(
+    const ParticleSystem& particles,
+    const std::string& filename,
+    bool verbose
+) {
+    // Build spherical Delaunay mesh
+    MeshBuilderParams params;
+    params.verbose = verbose;
+    params.density_radius = 0.3;
+    
+    Mesh mesh = build_spherical_mesh(particles, params);
+    
+    return write_vtk_mesh(particles, mesh, filename);
+}
+
 bool write_vtk_timestep(
     const ParticleSystem& particles,
     const std::string& prefix,
-    int timestep
+    int timestep,
+    bool verbose
 ) {
     std::ostringstream filename;
     filename << prefix << "_" << std::setw(6) << std::setfill('0') << timestep << ".vtp";
-    return write_vtk(particles, filename.str());
+    return write_vtk(particles, filename.str(), verbose);
 }
-

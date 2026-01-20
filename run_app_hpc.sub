@@ -1,0 +1,35 @@
+#!/bin/bash
+# HPC submission script for Aegis-Murmuration simulation
+# Submit with: bsub < run_app_hpc.sub
+
+#BSUB -J AegisMurmuration
+#BSUB -q hpcintro
+#BSUB -W 00:30
+#BSUB -n 24
+#BSUB -R "rusage[mem=16GB]"
+#BSUB -R "span[hosts=1]"
+#BSUB -o logs/%J.out
+#BSUB -e logs/%J.err
+
+set -e
+
+module load gcc/11.5.0
+
+make clean && make -j
+
+# Create output directories
+mkdir -p output_data
+mkdir -p logs
+
+export OMP_NUM_THREADS=24
+
+N_PARTICLES=50000
+TIMESTEPS=1000
+OUTPUT_INTERVAL=1
+
+# Execute the simulation
+./aegis_sim $N_PARTICLES $TIMESTEPS $OUTPUT_INTERVAL
+
+echo ""
+echo "=== Job Complete ==="
+
